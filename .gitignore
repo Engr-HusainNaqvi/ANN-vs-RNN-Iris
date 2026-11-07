@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+results/cache.pkl
+results/*_log.txt
+.streamlit/secrets.toml
+.DS_Store
+Thumbs.db

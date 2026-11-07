@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ANN vs RNN on Iris · from first principles</title>
+<meta name="description" content="Two neural networks written from scratch in NumPy, verified by gradient checks, compared with corrected statistics and explored through mathematical visualisations.">
+<meta property="og:title" content="ANN vs RNN on Iris: neural networks from first principles">
+<meta property="og:image" content="figures/06_decision_boundaries.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
+<style>
+:root{
+  --bg:#f9f9f7; --surface:#fcfcfb; --card:#ffffff; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --ann:#6250d6; --rnn:#e34948; --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --accent:#2a78d6;
+  --shadow:0 1px 2px rgba(11,11,11,.06),0 8px 24px rgba(11,11,11,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0d; --surface:#1a1a19; --card:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --line:#2c2c2a; --ann:#9085e9; --rnn:#e66767; --accent:#3987e5; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --surface:#1a1a19; --card:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --ann:#9085e9; --rnn:#e66767; --accent:#3987e5; --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:18px;align-items:center;height:52px;overflow-x:auto;white-space:nowrap;font-size:14px}
+nav b{margin-right:auto;color:var(--ink)}
+nav a{color:var(--ink2)}
+header{padding:56px 0 28px}
+.kicker{color:var(--muted);font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.12;margin:10px 0 14px;letter-spacing:-.02em}
+h1 .a{color:var(--ann)} h1 .r{color:var(--rnn)}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--ink2);max-width:780px;margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 8px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;font-weight:600;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.btn.primary{background:var(--rnn);border-color:var(--rnn);color:#fff}
+.btn:hover{text-decoration:none;transform:translateY(-1px)}
+.author{color:var(--muted);font-size:14px;margin-top:10px}
+.hero{margin:26px 0 8px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow)}
+.hero img{display:block;width:100%;height:auto}
+section{padding:40px 0;border-top:1px solid var(--line)}
+h2{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--ink2);margin:0 0 22px;max-width:760px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:4px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.stat .v{font-size:30px;font-weight:700;letter-spacing:-.02em}
+.stat .l{color:var(--ink2);font-size:14px}
+.findings{counter-reset:f;list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.findings li{counter-increment:f;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px 14px 56px;position:relative}
+.findings li::before{content:counter(f);position:absolute;left:16px;top:14px;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);font-weight:700;font-size:14px;display:grid;place-items:center}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px}
+.tbl{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{color:var(--ink2);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.ann{color:var(--ann);font-weight:700} .rnn{color:var(--rnn);font-weight:700}
+figure{margin:0 0 26px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+figure img{display:block;width:100%;height:auto;background:#fcfcfb}
+figcaption{padding:12px 16px;color:var(--ink2);font-size:14.5px;border-top:1px solid var(--line)}
+figcaption b{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.math{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 18px;margin-bottom:16px;overflow-x:auto}
+.math h3{font-size:16px;margin:14px 0 0}
+.katex-display{margin:.8em 0}
+iframe{width:100%;height:580px;border:0;display:block;background:#fcfcfb}
+.frame{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:10px}
+code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:14px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;line-height:1.5}
+footer{padding:36px 0 60px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+.refs{font-size:14.5px;color:var(--ink2);padding-left:20px}
+.theme{background:none;border:1px solid var(--line);color:var(--ink2);border-radius:8px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <b>🌸 ANN vs RNN</b>
+  <a href="#results">Results</a><a href="#visuals">Visualisations</a><a href="#math">Math</a>
+  <a href="#interactive">Interactive</a><a href="#reproduce">Source code</a>
+  <button class="theme" id="theme" aria-label="Toggle colour theme">◐ theme</button>
+</div></nav>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Machine learning · from first principles</div>
+  <h1>Neural networks, opened up:<br><span class="a">ANN</span> vs <span class="r">RNN</span> on Iris</h1>
+  <p class="lede">Two networks written from scratch in NumPy with hand-derived backpropagation and backpropagation-through-time,
+    verified against finite differences, compared with honest statistics, and explored through loss landscapes, eigen-spectra
+    and hidden-state dynamics.</p>
+  <div class="btns">
+    <a class="btn primary" href="https://ann-vs-rnn-iris.streamlit.app">▶ Live demo</a>
+    <a class="btn" href="https://github.com/Engr-HusainNaqvi/ANN-vs-RNN-Iris">⌥ Repository</a>
+  </div>
+  <div class="author">Husain Naqvi · Biomedical Engineer · <a href="https://www.linkedin.com/in/hafizhussain">LinkedIn</a> · <a href="https://github.com/Engr-HusainNaqvi">GitHub</a></div>
+  <div class="hero"><img src="figures/training_evolution.gif" alt="Decision boundaries of both networks forming during training" width="900" height="441"></div>
+</header>
+
+<section id="results">
+  <h2>Results at a glance</h2>
+  <p class="sub">5-fold × 3-repeat stratified cross-validation: 15 paired test folds, identical splits and seeds for both models.</p>
+  <div class="stats">
+    <div class="stat"><div class="v ann">96.0%</div><div class="l">ANN accuracy (± 3.6)</div></div>
+    <div class="stat"><div class="v rnn">95.6%</div><div class="l">RNN accuracy (± 4.1)</div></div>
+    <div class="stat"><div class="v">p = 0.85</div><div class="l">corrected t-test: no significant difference</div></div>
+    <div class="stat"><div class="v">&lt; 10⁻⁵</div><div class="l">max gradient-check error (median ~10⁻⁹)</div></div>
+  </div>
+  <div class="tbl" style="margin-top:16px">
+  <table>
+    <thead><tr><th>Model</th><th>Accuracy</th><th>Macro-F1</th><th>Log-loss</th><th>ECE</th><th>Parameters</th></tr></thead>
+    <tbody>
+      <tr><td class="ann">ANN · 4→16→3</td><td>0.960 ± 0.036</td><td>0.960 ± 0.036</td><td>0.158 ± 0.168</td><td>0.030</td><td>131</td></tr>
+      <tr><td class="rnn">RNN · Elman H=10, T=4</td><td>0.956 ± 0.041</td><td>0.955 ± 0.042</td><td>0.219 ± 0.178</td><td>0.033</td><td>153</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3 style="margin-top:28px">What the experiments show</h3>
+  <ol class="findings">
+    <li><b>Accuracy is statistically indistinguishable.</b> Δ = +0.004, 95% CI [−0.046, +0.055]; Nadeau–Bengio corrected <i>t</i> = 0.19, <i>p</i> = 0.85; Wilcoxon <i>p</i> = 0.98.</li>
+    <li><b>The ANN is better calibrated</b>: lower log-loss and a lower expected calibration error.</li>
+    <li><b>The RNN's sequential prior does not fit tabular data.</b> Reading the measurements in different orders moves its accuracy from 92.7% to 96.7% across all 24 permutations; the ANN is order-invariant by construction.</li>
+    <li><b>The ANN is far more sample-efficient</b>: 89% vs 75% accuracy with only 9 training flowers.</li>
+    <li><b>Inside the RNN</b>, training pushes the spectral radius of \(W_{hh}\) above 1; with only four steps this stays stable, and each species follows its own trajectory through the hidden-state space.</li>
+  </ol>
+</section>
+
+<section id="visuals">
+  <h2>Visualisations</h2>
+  <p class="sub">Every figure is generated by <code>scripts/make_figures.py</code> from the cached experiment results, using one colour-blind-safe palette (classes also carry marker shapes).</p>
+  <figure><img loading="lazy" src="figures/03_architectures.png" alt="Architecture diagrams"><figcaption><b>Two ways to see a flower.</b> The ANN maps all four measurements at once; the RNN reads them one per time step and must carry what it has seen in its hidden state.</figcaption></figure>
+  <figure><img loading="lazy" src="figures/06_decision_boundaries.png" alt="Decision boundaries"><figcaption><b>Posterior and predictive entropy</b> in the PCA plane. Colour is mixed by class probability, so uncertain regions look washed out; the lower row shows \(H(\hat{\mathbf y})=-\sum_k \hat y_k\log\hat y_k\).</figcaption></figure>
+  <figure><img loading="lazy" src="figures/07_loss_landscape.png" alt="Loss landscape"><figcaption><b>Loss landscapes</b> \(\mathcal L(\theta^*+\alpha\delta+\beta\eta)\) along two filter-normalised random directions. The ANN sits in a broad, smooth basin; the RNN's minimum is sharper and the surface more irregular.</figcaption></figure>
+  <div class="grid2">
+    <figure><img loading="lazy" src="figures/09_rnn_dynamics.png" alt="RNN dynamics"><figcaption><b>The RNN as a dynamical system:</b> hidden-state trajectories, eigenvalues of \(W_{hh}\) relative to the unit circle, and the spectral radius during training.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/08_gradient_flow.png" alt="Gradient flow"><figcaption><b>Backpropagation through time:</b> the gradient magnitude \(\lVert\partial\mathcal L/\partial h_t\rVert\) reaching each time step, over training.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/05_cv_statistics.png" alt="Statistics"><figcaption><b>A statistically honest comparison:</b> paired fold accuracies, the distribution of differences and its corrected confidence interval.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/13_feature_order_and_efficiency.png" alt="Inductive bias"><figcaption><b>Inductive bias:</b> RNN accuracy for all 4! reading orders, and accuracy against training-set size.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/12_evaluation.png" alt="Evaluation"><figcaption><b>Beyond accuracy:</b> confusion matrices, one-vs-rest ROC curves and reliability diagrams from 450 out-of-fold predictions.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/14_gradient_check.png" alt="Gradient check"><figcaption><b>Verifying the calculus:</b> every analytic gradient against its central finite difference.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/10_representations.png" alt="Representations"><figcaption><b>Learned representations</b> just before the softmax, with linear-probe accuracy.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/11_weights.png" alt="Weights"><figcaption><b>Learned weight matrices</b> on a diverging scale.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/01_dataset_scatter_matrix.png" alt="Dataset"><figcaption><b>The data:</b> scatter matrix, class-conditional densities and correlations.</figcaption></figure>
+    <figure><img loading="lazy" src="figures/04_learning_curves.png" alt="Learning curves"><figcaption><b>Learning dynamics:</b> mean ± s.d. over 15 folds.</figcaption></figure>
+  </div>
+  <figure><img loading="lazy" src="figures/02_dataset_projections.png" alt="Projections"><figcaption><b>Linear structure:</b> PCA, LDA and the eigen-spectrum of the covariance matrix.</figcaption></figure>
+</section>
+
+<section id="math">
+  <h2>The mathematics</h2>
+  <p class="sub">Exactly what <code>src/irisnet/models.py</code> implements, using the row-vector convention with a mini-batch of \(N\) samples.</p>
+  <div class="math">
+    <h3>ANN: forward and backward</h3>
+    $$A^{(1)}=\tanh\!\big(XW^{(1)}+\mathbf b^{(1)}\big),\qquad \hat Y=\operatorname{softmax}\!\big(A^{(1)}W^{(2)}+\mathbf b^{(2)}\big)$$
+    $$\delta^{(2)}=\tfrac1N(\hat Y-Y),\quad \frac{\partial\mathcal L}{\partial W^{(2)}}=A^{(1)\top}\delta^{(2)},\quad \delta^{(1)}=\delta^{(2)}W^{(2)\top}\odot\big(1-A^{(1)}\odot A^{(1)}\big),\quad \frac{\partial\mathcal L}{\partial W^{(1)}}=X^\top\delta^{(1)}$$
+  </div>
+  <div class="math">
+    <h3>RNN: recurrence and backpropagation through time</h3>
+    $$h_0=\mathbf 0,\qquad h_t=\tanh\!\big(x_tW_{xh}+h_{t-1}W_{hh}+b_h\big),\qquad \hat{\mathbf y}=\operatorname{softmax}(h_4W_{hy}+b_y)$$
+    $$\frac{\partial\mathcal L}{\partial h_{t-1}}=\Big(\frac{\partial\mathcal L}{\partial h_t}\odot(1-h_t^2)\Big)W_{hh}^\top,\qquad \frac{\partial\mathcal L}{\partial W_{hh}}=\sum_{t=1}^{T}h_{t-1}^\top\Big(\frac{\partial\mathcal L}{\partial h_t}\odot(1-h_t^2)\Big)$$
+    $$\frac{\partial\mathcal L}{\partial h_t}=\frac{\partial\mathcal L}{\partial h_T}\prod_{k=t+1}^{T}\operatorname{diag}(1-h_k^2)\,W_{hh}^\top\;\;\Rightarrow\;\;\Big\lVert\frac{\partial h_T}{\partial h_t}\Big\rVert\le\big(\sigma_{\max}(W_{hh})\big)^{T-t}$$
+  </div>
+  <div class="math">
+    <h3>Loss, optimiser, verification and statistics</h3>
+    $$\mathcal L=-\frac1N\sum_{i}\sum_{k}y_{ik}\log\hat y_{ik}+\frac\lambda2\sum_l\lVert W^{(l)}\rVert_F^2,\qquad \frac{\partial\mathcal L}{\partial\mathbf z}=\tfrac1N(\hat{\mathbf y}-\mathbf y)$$
+    $$\theta_t=\theta_{t-1}-\eta\,\frac{m_t/(1-\beta_1^t)}{\sqrt{v_t/(1-\beta_2^t)}+\epsilon}\qquad\text{(Adam)}$$
+    $$\frac{\partial\mathcal L}{\partial\theta_i}\approx\frac{\mathcal L(\theta+\epsilon e_i)-\mathcal L(\theta-\epsilon e_i)}{2\epsilon},\qquad t=\frac{\bar d}{\sqrt{\big(\frac1J+\frac{n_{\text{test}}}{n_{\text{train}}}\big)\hat\sigma_d^2}}\;\;\text{(Nadeau–Bengio)}$$
+  </div>
+</section>
+
+<section id="interactive">
+  <h2>Interactive</h2>
+  <p class="sub">Drag to rotate, scroll to zoom. For training your own models live, open the <a href="https://ann-vs-rnn-iris.streamlit.app">Streamlit demo</a>.</p>
+  <div class="frame"><iframe loading="lazy" src="interactive/loss_landscape.html" title="3-D loss surfaces"></iframe></div>
+  <p class="sub">3-D loss surfaces of the trained ANN and RNN (log scale).</p>
+  <div class="frame"><iframe loading="lazy" src="interactive/rnn_trajectories.html" title="RNN hidden-state trajectories"></iframe></div>
+  <p class="sub">Every flower's path \(h_0\to h_4\) through the RNN's hidden state, projected onto three principal components.</p>
+  <div class="frame"><iframe loading="lazy" src="interactive/iris_3d.html" title="Iris in 3-D" style="height:520px"></iframe></div>
+  <p class="sub">The raw data: petal length, petal width and sepal length.</p>
+</section>
+
+<section id="reproduce">
+  <h2>Source code</h2>
+  <p>The full implementation, notebook and trained weights are kept in a private repository. Access is available on request to professors, reviewers and collaborators via <a href="https://www.linkedin.com/in/hafizhussain">LinkedIn</a> or <a href="https://github.com/Engr-HusainNaqvi">GitHub</a>.</p>
+  <p><b>© 2026 Husain Naqvi. All rights reserved.</b> No part of this work may be copied or reused without written permission.</p>
+  <h3>References</h3>
+  <ol class="refs">
+    <li>Fisher (1936). The use of multiple measurements in taxonomic problems. <i>Annals of Eugenics</i>.</li>
+    <li>Rumelhart, Hinton &amp; Williams (1986). Learning representations by back-propagating errors. <i>Nature</i>.</li>
+    <li>Elman (1990). Finding structure in time. <i>Cognitive Science</i>.</li>
+    <li>Bengio, Simard &amp; Frasconi (1994). Learning long-term dependencies with gradient descent is difficult. <i>IEEE TNN</i>.</li>
+    <li>Pascanu, Mikolov &amp; Bengio (2013). On the difficulty of training recurrent neural networks. <i>ICML</i>.</li>
+    <li>Kingma &amp; Ba (2015). Adam: a method for stochastic optimization. <i>ICLR</i>.</li>
+    <li>Nadeau &amp; Bengio (2003). Inference for the generalization error. <i>Machine Learning</i>.</li>
+    <li>Li et al. (2018). Visualizing the loss landscape of neural nets. <i>NeurIPS</i>.</li>
+    <li>Guo et al. (2017). On calibration of modern neural networks. <i>ICML</i>.</li>
+  </ol>
+</section>
+</div>
+<footer><div class="wrap">© 2026 Husain Naqvi · All rights reserved · Built with NumPy, Matplotlib, Plotly and Streamlit.</div></footer>
+<script>
+(function(){
+  var root=document.documentElement,b=document.getElementById('theme'),k='iris-theme';
+  try{var s=localStorage.getItem(k); if(s) root.setAttribute('data-theme',s);}catch(e){}
+  b.addEventListener('click',function(){
+    var dark=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);
+    var n=dark?'light':'dark'; root.setAttribute('data-theme',n);
+    try{localStorage.setItem(k,n);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
